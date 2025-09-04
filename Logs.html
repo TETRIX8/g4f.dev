@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Логи системы штрих-кодов</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h2 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .log-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            padding: 8px 15px;
+            border-bottom: 1px solid #eee;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-entry:hover {
+            background-color: #f8f9fa;
+        }
+        
+        /* Цветовая схема для разных типов сообщений */
+        .log-entry:contains("✅") { color: #28a745; }
+        .log-entry:contains("❌") { color: #dc3545; }
+        .log-entry:contains("⚠️") { color: #ffc107; }
+        .log-entry:contains("🔍") { color: #17a2b8; }
+        .log-entry:contains("📥") { color: #6f42c1; }
+        .log-entry:contains("📤") { color: #fd7e14; }
+        .log-entry:contains("⚡") { color: #20c997; }
+        .log-entry:contains("🔄") { color: #6c757d; }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .stats {
+            background: #e9ecef;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        
+        .empty-logs {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 200px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>
+            📋 Логи системы штрих-кодов
+            <small style="opacity: 0.8; font-size: 14px; font-weight: normal;">Оптимизированная версия</small>
+        </h2>
+    </div>
+    
+    <div class="controls">
+        <button class="btn btn-primary" onclick="refreshLogs()">🔄 Обновить</button>
+        <button class="btn btn-danger" onclick="clearLogs()">🧹 Очистить</button>
+        <button class="btn btn-success" onclick="exportLogs()">💾 Экспорт</button>
+        <input type="text" class="filter-input" placeholder="Фильтр по тексту..." onkeyup="filterLogs(this.value)">
+        <div class="stats" id="stats">Загрузка...</div>
+    </div>
+    
+    <div class="log-container" id="logContainer">
+        <div class="empty-logs">Загрузка логов...</div>
+    </div>
+
+    <script>
+        let allLogs = [];
+        
+        function loadLogs() {
+            google.script.run
+                .withSuccessHandler(displayLogs)
+                .withFailureHandler(showError)
+                .getUserLogs();
+        }
+        
+        function displayLogs(logs) {
+            allLogs = logs || [];
+            const container = document.getElementById('logContainer');
+            const stats = document.getElementById('stats');
+            
+            if (allLogs.length === 0) {
+                container.innerHTML = '<div class="empty-logs">📝 Логи пусты</div>';
+                stats.textContent = 'Записей: 0';
+                return;
+            }
+            
+            // Показываем логи в обратном порядке (новые сверху)
+            const reversedLogs = [...allLogs].reverse();
+            
+            container.innerHTML = reversedLogs
+                .map(log => `<div class="log-entry">${escapeHtml(log)}</div>`)
+                .join('');
+            
+            // Обновляем статистику
+            const errorCount = logs.filter(log => log.includes('❌')).length;
+            const successCount = logs.filter(log => log.includes('✅')).length;
+            const warningCount = logs.filter(log => log.includes('⚠️')).length;
+            
+            stats.innerHTML = `
+                Всего: ${allLogs.length} | 
+                ✅ Успех: ${successCount} | 
+                ❌ Ошибки: ${errorCount} | 
+                ⚠️ Предупреждения: ${warningCount}
+            `;
+            
+            // Автоскролл вниз к новым записям
+            container.scrollTop = 0;
+        }
+        
+        function showError(error) {
+            const container = document.getElementById('logContainer');
+            container.innerHTML = `
+                <div class="empty-logs" style="color: #dc3545;">
+                    ❌ Ошибка загрузки логов:<br>
+                    ${escapeHtml(error.message || error)}
+                </div>
+            `;
+        }
+        
+        function refreshLogs() {
+            document.getElementById('stats').textContent = 'Обновление...';
+            loadLogs();
+        }
+        
+        function clearLogs() {
+            if (!confirm('Вы уверены, что хотите очистить все логи?')) {
+                return;
+            }
+            
+            google.script.run
+                .withSuccessHandler(() => {
+                    allLogs = [];
+                    displayLogs([]);
+                    alert('✅ Логи очищены');
+                })
+                .withFailureHandler(error => alert(`❌ Ошибка: ${error.message}`))
+                .clearLogs();
+        }
+        
+        function exportLogs() {
+            if (allLogs.length === 0) {
+                alert('Нет логов для экспорта');
+                return;
+            }
+            
+            const content = allLogs.join('\n');
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `logs_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function filterLogs(searchText) {
+            const entries = document.querySelectorAll('.log-entry');
+            const search = searchText.toLowerCase();
+            
+            let visibleCount = 0;
+            entries.forEach(entry => {
+                const text = entry.textContent.toLowerCase();
+                if (search === '' || text.includes(search)) {
+                    entry.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    entry.classList.add('hidden');
+                }
+            });
+            
+            // Обновляем счетчик в статистике
+            if (search !== '') {
+                const stats = document.getElementById('stats');
+                const originalText = stats.textContent;
+                if (!originalText.includes('Отфильтровано')) {
+                    stats.textContent += ` | Отфильтровано: ${visibleCount}`;
+                } else {
+                    stats.textContent = originalText.replace(/Отфильтровано: \d+/, `Отфильтровано: ${visibleCount}`);
+                }
+            } else {
+                // Убираем информацию о фильтрации
+                const stats = document.getElementById('stats');
+                stats.textContent = stats.textContent.replace(/ \| Отфильтровано: \d+/, '');
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Автоматическое обновление каждые 30 секунд
+        setInterval(loadLogs, 30000);
+        
+        // Загружаем логи при открытии
+        loadLogs();
+        
+        // Горячие клавиши
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'r':
+                        e.preventDefault();
+                        refreshLogs();
+                        break;
+                    case 'f':
+                        e.preventDefault();
+                        document.querySelector('.filter-input').focus();
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
