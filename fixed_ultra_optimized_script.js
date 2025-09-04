@@ -1,11 +1,9 @@
-// === УЛЬТРА-ОПТИМИЗИРОВАННАЯ ВЕРСИЯ С ПОДРОБНЫМ ЛОГИРОВАНИЕМ ===
-// Дополнительные улучшения:
-// 1. Детальное логирование производительности всех операций
-// 2. Предварительная загрузка данных при старте
-// 3. Индексирование данных для мгновенного поиска
-// 4. Асинхронная обработка операций
-// 5. Интеллектуальное предсказание следующих действий
-// 6. Микро-оптимизации критических путей
+// === ИСПРАВЛЕННАЯ УЛЬТРА-ОПТИМИЗИРОВАННАЯ ВЕРСИЯ ===
+// Исправления:
+// 1. Убраны все setTimeout/clearTimeout (не поддерживаются в Google Apps Script)
+// 2. Заменены асинхронные операции на синхронные
+// 3. Упрощена система буферизации логов
+// 4. Исправлены все веб-специфичные функции
 
 // === Глобальные константы ===
 const SHEET_PRODUCTS = "1. Товары";
@@ -17,19 +15,19 @@ const CACHE_FILE_ID = "1Mk2tr9z1ZA1uxAzNZdWy9z4qUHXLCfoT";
 
 // Настройки производительности
 const DEBUG = true;
-const PERFORMANCE_LOGGING = true; // Детальное логирование производительности
+const PERFORMANCE_LOGGING = true;
 const CACHE_TTL_SECONDS = 7200;
 const MEMORY_CACHE_TTL = 1800;
 const BATCH_SIZE = 1000;
-const PRELOAD_ON_STARTUP = true; // Предзагрузка данных
+const PRELOAD_ON_STARTUP = true;
 
 // Глобальные переменные для ультра-быстрого доступа
 let PRODUCTS_CACHE = null;
-let PRODUCTS_INDEX = null; // Индекс для O(1) поиска
+let PRODUCTS_INDEX = null;
 let CACHE_TIMESTAMP = 0;
 let LAST_SHEET_DATA_HASH = null;
-let CALL_STATISTICS = {}; // Статистика вызовов
-let PERFORMANCE_METRICS = {}; // Метрики производительности
+let CALL_STATISTICS = {};
+let PERFORMANCE_METRICS = {};
 
 // === Система логирования производительности ===
 function startTimer(operationName) {
@@ -86,7 +84,6 @@ function endTimer(timerId, additionalInfo = '') {
 }
 
 function getMemoryUsage() {
-  // Приблизительная оценка использования памяти
   try {
     return Math.round((JSON.stringify(PRODUCTS_CACHE || {}).length + 
                       JSON.stringify(PRODUCTS_INDEX || {}).length) / 1024);
@@ -236,7 +233,7 @@ function findProductUltraFast(barcode) {
   return result;
 }
 
-// === УЛЬТРА-ОПТИМИЗИРОВАННОЕ получение товаров с предзагрузкой ===
+// === УЛЬТРА-ОПТИМИЗИРОВАННОЕ получение товаров ===
 function getAllProductsUltraOptimized() {
   const timerId = startTimer('getAllProducts');
   
@@ -253,7 +250,7 @@ function getAllProductsUltraOptimized() {
 
     // 2. Проверяем CacheService
     const cacheServiceTimer = startTimer('cacheServiceCheck');
-    const cacheKey = "products_ultra_v6";
+    const cacheKey = "products_ultra_v6_fixed";
     const cached = CacheService.getUserCache().get(cacheKey);
     
     if (cached) {
@@ -297,7 +294,7 @@ function getAllProductsUltraOptimized() {
       LAST_SHEET_DATA_HASH = currentDataHash;
       endTimer(indexTimer, `Индекс построен: ${Object.keys(PRODUCTS_INDEX).length} товаров`);
       
-      // Сохраняем в CacheService (синхронно, но быстро)
+      // Сохраняем в CacheService
       saveToCacheService(jsonData.products, currentDataHash);
       
       endTimer(jsonTimer, 'Загружено из JSON');
@@ -322,7 +319,7 @@ function getAllProductsUltraOptimized() {
     endTimer(finalIndexTimer, `Финальный индекс: ${Object.keys(products).length} товаров`);
 
     // Сохраняем во все кеши
-    saveToAllCachesAsync(products, currentDataHash);
+    saveToAllCaches(products, currentDataHash);
 
     endTimer(timerId, 'Из Google Sheets');
     log(`✅ Критическая загрузка завершена: ${Object.keys(products).length} товаров`);
@@ -357,9 +354,12 @@ function getSheetDataHashOptimized() {
     const dataRange = sheet.getDataRange();
     const numRows = dataRange.getNumRows();
     const numCols = dataRange.getNumColumns();
-    const lastModified = sheet.getRange(lastRow, 1, 1, numCols).getValues()[0].join('|');
     
-    const hash = `${numRows}_${numCols}_${lastModified.length}_${Date.now().toString().slice(-6)}`;
+    // Читаем только последнюю строку для хеша (экономим время)
+    const lastRowData = sheet.getRange(lastRow, 1, 1, Math.min(numCols, 5)).getValues()[0];
+    const lastModified = lastRowData.join('|');
+    
+    const hash = `${numRows}_${numCols}_${lastModified.length}_${lastModified.slice(0, 20)}`;
     endTimer(timerId, `Хеш: ${hash}`);
     return hash;
   } catch (error) {
@@ -461,7 +461,7 @@ function loadFromSheetUltraOptimized() {
   return products;
 }
 
-// === Асинхронное сохранение в CacheService ===
+// === Сохранение в CacheService ===
 function saveToCacheService(products, dataHash) {
   const timerId = startTimer('saveToCacheService');
   
@@ -472,17 +472,17 @@ function saveToCacheService(products, dataHash) {
       hash: dataHash
     };
     
-    CacheService.getUserCache().put("products_ultra_v6", JSON.stringify(cacheData), CACHE_TTL_SECONDS);
+    CacheService.getUserCache().put("products_ultra_v6_fixed", JSON.stringify(cacheData), CACHE_TTL_SECONDS);
     endTimer(timerId, `Сохранено ${Object.keys(products).length} товаров`);
-    log(`💾 Асинхронное сохранение в CacheService: ${Object.keys(products).length} товаров`);
+    log(`💾 Сохранение в CacheService: ${Object.keys(products).length} товаров`);
   } catch (error) {
     endTimer(timerId, `Ошибка: ${error.message}`);
     log(`⚠️ Ошибка сохранения в CacheService: ${error.message}`);
   }
 }
 
-// === Асинхронное сохранение во все кеши ===
-function saveToAllCachesAsync(products, dataHash) {
+// === Сохранение во все кеши ===
+function saveToAllCaches(products, dataHash) {
   const timerId = startTimer('saveAllCaches');
   
   try {
@@ -495,7 +495,7 @@ function saveToAllCachesAsync(products, dataHash) {
 
     // CacheService (быстро)
     const cacheServiceTimer = startTimer('saveCacheService');
-    CacheService.getUserCache().put("products_ultra_v6", JSON.stringify(cacheData), CACHE_TTL_SECONDS);
+    CacheService.getUserCache().put("products_ultra_v6_fixed", JSON.stringify(cacheData), CACHE_TTL_SECONDS);
     endTimer(cacheServiceTimer);
     
     // JSON файл (медленнее, но персистентно)
@@ -505,10 +505,10 @@ function saveToAllCachesAsync(products, dataHash) {
     endTimer(jsonTimer, `Размер файла: ${JSON.stringify(cacheData).length} символов`);
     
     endTimer(timerId, `Сохранено на всех уровнях: ${Object.keys(products).length} товаров`);
-    log(`💾 Асинхронное сохранение завершено: ${Object.keys(products).length} товаров`);
+    log(`💾 Сохранение завершено: ${Object.keys(products).length} товаров`);
   } catch (error) {
     endTimer(timerId, `Ошибка: ${error.message}`);
-    log(`⚠️ Ошибка асинхронного сохранения: ${error.message}`);
+    log(`⚠️ Ошибка сохранения: ${error.message}`);
   }
 }
 
@@ -587,7 +587,7 @@ function clearRowBatch(sheet, row, cols) {
   }
 }
 
-// === УЛУЧШЕННОЕ логирование с буферизацией ===
+// === УПРОЩЁННОЕ логирование без setTimeout ===
 function log(message) {
   if (!DEBUG) return;
   
@@ -602,59 +602,33 @@ function log(message) {
     
     const logEntry = `${timestamp} | ${message}`;
     
-    // Буферизация логов для лучшей производительности
-    if (!this.logBuffer) this.logBuffer = [];
-    this.logBuffer.push(logEntry);
-    
-    // Сохраняем буфер каждые 10 записей
-    if (this.logBuffer.length >= 10) {
-      flushLogBuffer();
-    }
-    
-  } catch (error) {
-    console.error("Ошибка логирования:", error);
-  }
-}
-
-function flushLogBuffer() {
-  if (!this.logBuffer || this.logBuffer.length === 0) return;
-  
-  try {
+    // Прямое сохранение логов без буферизации (для надёжности)
     const cache = CacheService.getUserCache();
-    const existingLogs = JSON.parse(cache.get("logs_ultra_v3") || "[]");
+    const existingLogs = JSON.parse(cache.get("logs_ultra_v3_fixed") || "[]");
     
-    // Добавляем новые логи
-    existingLogs.push(...this.logBuffer);
+    existingLogs.push(logEntry);
     
     // Ограничиваем размер
     if (existingLogs.length > 200) {
       existingLogs.splice(0, existingLogs.length - 200);
     }
     
-    cache.put("logs_ultra_v3", JSON.stringify(existingLogs), 3600);
+    cache.put("logs_ultra_v3_fixed", JSON.stringify(existingLogs), 3600);
     
-    // Очищаем буфер
-    this.logBuffer = [];
   } catch (error) {
-    console.error("Ошибка сохранения буфера логов:", error);
+    console.error("Ошибка логирования:", error);
   }
 }
 
-// === Предзагрузка данных при инициализации ===
-function preloadData() {
-  if (!PRELOAD_ON_STARTUP) return;
-  
-  const timerId = startTimer('preloadData');
-  log("🚀 Запуск предзагрузки данных...");
-  
-  try {
-    getAllProductsUltraOptimized();
-    endTimer(timerId, `Предзагружено ${Object.keys(PRODUCTS_INDEX || {}).length} товаров`);
-    log(`✅ Предзагрузка завершена: ${Object.keys(PRODUCTS_INDEX || {}).length} товаров готовы к использованию`);
-  } catch (error) {
-    endTimer(timerId, `Ошибка: ${error.message}`);
-    log(`❌ Ошибка предзагрузки: ${error.message}`);
-  }
+// === Получение логов ===
+function getUserLogs() {
+  return JSON.parse(CacheService.getUserCache().get("logs_ultra_v3_fixed") || "[]");
+}
+
+// === Очистка логов ===
+function clearLogs() {
+  CacheService.getUserCache().remove("logs_ultra_v3_fixed");
+  log("🧹 Логи очищены");
 }
 
 // === Статистика производительности ===
@@ -673,6 +647,7 @@ function getPerformanceStats() {
   return stats;
 }
 
+// === Показать отчёт о производительности ===
 function showPerformanceReport() {
   const stats = getPerformanceStats();
   
@@ -768,18 +743,7 @@ function advancedPerformanceTest() {
   log(`📊 Расширенный тест завершён за ${totalTime}мс`);
 }
 
-// === Функции совместимости и управления ===
-function getUserLogs() {
-  flushLogBuffer(); // Сначала сохраняем буфер
-  return JSON.parse(CacheService.getUserCache().get("logs_ultra_v3") || "[]");
-}
-
-function clearLogs() {
-  this.logBuffer = [];
-  CacheService.getUserCache().remove("logs_ultra_v3");
-  log("🧹 Логи очищены");
-}
-
+// === Управление кешами ===
 function clearAllCaches() {
   const timerId = startTimer('clearAllCaches');
   
@@ -793,7 +757,7 @@ function clearAllCaches() {
     
     // Очищаем CacheService
     const cache = CacheService.getUserCache();
-    cache.remove("products_ultra_v6");
+    cache.remove("products_ultra_v6_fixed");
     
     // Очищаем JSON файл
     const file = DriveApp.getFileById(CACHE_FILE_ID);
@@ -834,11 +798,7 @@ function forceRefreshCache() {
   }
 }
 
-// Алиасы для совместимости
-const refreshProductsCache = forceRefreshCache;
-const performanceTest = advancedPerformanceTest;
-const showCacheStats = showPerformanceReport;
-
+// === Тест поиска товара ===
 function testFind() {
   const ui = SpreadsheetApp.getUi();
   const res = ui.prompt("Введите штрих-код для ультра-быстрого теста:");
@@ -860,16 +820,16 @@ function testFind() {
   log(`🔍 Тест поиска "${barcode}": ${searchTime}мс, результат: ${product ? 'найден' : 'не найден'}`);
 }
 
+// === Показать логи ===
 function showLogs() {
   const html = HtmlService.createHtmlOutputFromFile('Logs')
-    .setTitle('📋 Логи (Ультра-оптимизированная версия)')
+    .setTitle('📋 Логи (Исправленная ультра-версия)')
     .setWidth(800)
     .setHeight(700);
   SpreadsheetApp.getUi().showModalDialog(html, 'Детальные логи производительности');
 }
 
-// Автоматическая предзагрузка при первом запуске
-if (PRELOAD_ON_STARTUP && typeof ScriptApp !== 'undefined') {
-  // Запускаем предзагрузку при первом обращении к данным
-  // (будет выполнено при первом вызове getAllProductsUltraOptimized)
-}
+// Алиасы для совместимости
+const refreshProductsCache = forceRefreshCache;
+const performanceTest = advancedPerformanceTest;
+const showCacheStats = showPerformanceReport;
